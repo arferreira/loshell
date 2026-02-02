@@ -18,8 +18,10 @@ use ratatui::{
 };
 
 use crate::theme::Theme;
+use crate::ui::logo::{self, LOGO_HEIGHT, LOGO_WIDTH};
 
 mod theme;
+mod ui;
 
 pub fn run() -> Result<()> {
     let _ = enable_raw_mode();
@@ -50,19 +52,26 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             f.render_widget(ratatui::widgets::Clear, area);
 
             let block = Block::default()
-                .title(" Loshell - A room for your mind ")
                 .style(Theme::base())
                 .border_style(Theme::frame())
-                .title_style(Theme::title())
                 .borders(Borders::ALL);
 
             f.render_widget(block, area);
 
-            let inner = Rect {
-                x: area.x + 1,
+            // Logo in title position (top left, inside border)
+            let logo_area = Rect {
+                x: area.x + 2,
                 y: area.y + 1,
-                width: area.width.saturating_sub(2),
-                height: area.height.saturating_sub(2),
+                width: LOGO_WIDTH,
+                height: LOGO_HEIGHT,
+            };
+
+            // HUD below logo
+            let hud_area = Rect {
+                x: area.x + 2,
+                y: area.y + 1 + LOGO_HEIGHT + 1,
+                width: area.width.saturating_sub(4),
+                height: area.height.saturating_sub(LOGO_HEIGHT + 3),
             };
 
             let live_on = frame.is_multiple_of(2);
@@ -84,15 +93,15 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 Line::from(vec![
                     live,
                     Span::raw("  "),
-                    Span::styled("Loshell", Theme::title()),
+                    Span::styled(format!("Drift {}", pulse), Theme::frame()),
                 ]),
-                Line::from(Span::styled(format!("Drift {}", pulse), Theme::frame())),
                 Line::from(Span::styled("q  quit", Theme::frame())),
             ])
             .alignment(Alignment::Left)
             .style(Theme::base());
 
-            f.render_widget(hud, inner);
+            f.render_widget(logo::logo(), logo_area);
+            f.render_widget(hud, hud_area);
         })?;
 
         // remaining time
