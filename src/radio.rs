@@ -4,7 +4,7 @@ use std::sync::{
 };
 use std::thread::{self, JoinHandle};
 
-use rodio::{Decoder, OutputStream, Sink};
+use rodio::{Decoder, OutputStreamBuilder, Sink};
 use stream_download::{Settings, StreamDownload, http::HttpStream, http::reqwest, storage::temp::TempStorageProvider};
 
 pub struct Station {
@@ -45,6 +45,7 @@ pub struct Radio {
     pub current_station: usize,
     state: Arc<AtomicU8>,
     stop_flag: Arc<AtomicU8>,
+    volume: Arc<AtomicU8>, // 0-100
     handle: Option<JoinHandle<()>>,
 }
 
@@ -54,8 +55,17 @@ impl Radio {
             current_station: 0,
             state: Arc::new(AtomicU8::new(STATE_STOPPED)),
             stop_flag: Arc::new(AtomicU8::new(0)),
+            volume: Arc::new(AtomicU8::new(100)),
             handle: None,
         }
+    }
+
+    pub fn set_volume(&self, vol: u8) {
+        self.volume.store(vol.min(100), Ordering::SeqCst);
+    }
+
+    pub fn volume_handle(&self) -> Arc<AtomicU8> {
+        self.volume.clone()
     }
 
     pub fn station(&self) -> &Station {
@@ -95,10 +105,11 @@ impl Radio {
         let url = STATIONS[self.current_station].url.to_string();
         let stop_flag = self.stop_flag.clone();
         let state = self.state.clone();
+        let volume = self.volume.clone();
 
         let handle = thread::spawn(move || {
             // Create audio output
-            let (_stream, stream_handle) = match OutputStream::try_default() {
+            let stream = match OutputStreamBuilder::open_default_stream() {
                 Ok(s) => s,
                 Err(_) => {
                     state.store(STATE_ERROR, Ordering::SeqCst);
@@ -106,13 +117,7 @@ impl Radio {
                 }
             };
 
-            let sink = match Sink::try_new(&stream_handle) {
-                Ok(s) => s,
-                Err(_) => {
-                    state.store(STATE_ERROR, Ordering::SeqCst);
-                    return;
-                }
-            };
+            let sink = Sink::connect_new(&stream.mixer());
 
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
@@ -163,15 +168,17 @@ impl Radio {
                 };
 
                 sink.append(source);
-                sink.set_volume(1.0);
+                sink.set_volume(volume.load(Ordering::SeqCst) as f32 / 100.0);
                 sink.play();
 
                 // Now playing!
                 state.store(STATE_PLAYING, Ordering::SeqCst);
 
-                // Keep thread alive
+                // Keep thread alive, poll volume changes
                 while stop_flag.load(Ordering::SeqCst) == 0 {
-                    thread::sleep(std::time::Duration::from_millis(100));
+                    let vol = volume.load(Ordering::SeqCst) as f32 / 100.0;
+                    sink.set_volume(vol);
+                    thread::sleep(std::time::Duration::from_millis(50));
                 }
 
                 sink.stop();

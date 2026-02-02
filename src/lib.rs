@@ -113,28 +113,6 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 height: 3,
             };
 
-            if pomo.visible {
-                let (mm, ss) = pomo.mmss();
-                let mode_label = match pomo.mode {
-                    Mode::Focus => "FOCUS",
-                    Mode::Break => "BREAK",
-                };
-                let status = if pomo.running { "▶" } else { "⏸" };
-                let timer_style = if pomo.running { Theme::accent() } else { Theme::frame() };
-
-                let pomo_widget = Paragraph::new(vec![
-                    Line::from(Span::styled(format!("{:02}:{:02}", mm, ss), Theme::hot())),
-                    Line::from(vec![
-                        Span::styled(format!("{} ", status), timer_style),
-                        Span::styled(mode_label, Theme::frame()),
-                    ]),
-                ])
-                .alignment(Alignment::Right)
-                .style(Theme::base());
-
-                f.render_widget(pomo_widget, pomo_area);
-            }
-
             // Help bar at bottom
             let help_area = Rect {
                 x: area.x + 2,
@@ -165,6 +143,29 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             f.render_widget(logo::logo(), logo_area);
             f.render_widget(station_line, station_area);
             f.render_widget(help, help_area);
+
+            // Pomodoro on top
+            if pomo.visible {
+                let (mm, ss) = pomo.mmss();
+                let mode_label = match pomo.mode {
+                    Mode::Focus => "FOCUS",
+                    Mode::Break => "BREAK",
+                };
+                let status = if pomo.running { "▶" } else { "⏸" };
+                let timer_style = if pomo.running { Theme::accent() } else { Theme::frame() };
+
+                let pomo_widget = Paragraph::new(vec![
+                    Line::from(Span::styled(format!("{:02}:{:02}", mm, ss), Theme::hot())),
+                    Line::from(vec![
+                        Span::styled(format!("{} ", status), timer_style),
+                        Span::styled(mode_label, Theme::title()),
+                    ]),
+                ])
+                .alignment(Alignment::Right)
+                .style(Theme::base());
+
+                f.render_widget(pomo_widget, pomo_area);
+            }
         })?;
 
         // remaining time
@@ -194,10 +195,27 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
 
         // pomodoro tick (1s)
         if last_second.elapsed() >= Duration::from_secs(1) {
+            // Fade radio volume down when approaching timer end
+            if pomo.running && pomo.remaining.as_secs() <= 3 && radio.is_playing() {
+                let secs = pomo.remaining.as_secs();
+                // Gradually reduce: 3s->60%, 2s->40%, 1s->20%, 0s->10%
+                let vol = match secs {
+                    3 => 60,
+                    2 => 40,
+                    1 => 20,
+                    _ => 10,
+                };
+                radio.set_volume(vol);
+            }
+
             if pomo.tick_1s() {
-                // mode switched - play terminal bell
-                print!("\x07");
-                io::Write::flush(&mut io::stdout()).ok();
+                pomo.play_notification();
+                // Restore volume after a delay (notification lasts ~1.5s)
+                let vol_handle = radio.volume_handle();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(2000));
+                    vol_handle.store(100, std::sync::atomic::Ordering::SeqCst);
+                });
             }
             last_second = Instant::now();
         }

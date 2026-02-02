@@ -1,4 +1,9 @@
+use std::fs::File;
+use std::os::fd::AsRawFd;
+use std::thread;
 use std::time::Duration;
+
+use rodio::{OutputStreamBuilder, Sink, Source};
 
 pub enum Mode {
     Focus,
@@ -75,5 +80,54 @@ impl Pomodoro {
     pub fn mmss(&self) -> (u64, u64) {
         let secs = self.remaining.as_secs();
         (secs / 60, secs % 60)
+    }
+
+    pub fn play_notification(&self) {
+        let is_focus = matches!(self.mode, Mode::Focus);
+        thread::spawn(move || {
+            let Ok(stream) = OutputStreamBuilder::open_default_stream() else {
+                return;
+            };
+            let sink = Sink::connect_new(&stream.mixer());
+
+            // Different tones for focus vs break
+            // Focus starting: lower, calming tone
+            // Break starting: higher, alert tone
+            let (freq, duration_ms) = if is_focus {
+                (440.0, 300) // A4, calm
+            } else {
+                (880.0, 200) // A5, alert
+            };
+
+            // Play 3 beeps - loud enough to hear over music
+            for _ in 0..3 {
+                let beep = rodio::source::SineWave::new(freq)
+                    .take_duration(Duration::from_millis(duration_ms))
+                    .amplify(0.9);
+                sink.append(beep);
+
+                let silence = rodio::source::Zero::new(1, 44100)
+                    .take_duration(Duration::from_millis(150));
+                sink.append(silence);
+            }
+
+            sink.sleep_until_end();
+            sink.stop();
+            drop(sink);
+
+            // Suppress rodio's "Dropping OutputStream" message by redirecting stderr
+            unsafe {
+                let null = File::open("/dev/null").ok();
+                let old_stderr = libc::dup(2);
+                if let Some(ref f) = null {
+                    libc::dup2(f.as_raw_fd(), 2);
+                }
+                drop(stream);
+                if old_stderr >= 0 {
+                    libc::dup2(old_stderr, 2);
+                    libc::close(old_stderr);
+                }
+            }
+        });
     }
 }
