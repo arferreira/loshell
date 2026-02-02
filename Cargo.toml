@@ -2,6 +2,17 @@
 name = "loshell"
 version = "0.1.0"
 edition = "2024"
+description = "A terminal-native ambient environment for deep focus with lofi radio and pomodoro"
+license = "MIT"
+repository = "https://github.com/arferreira/loshell"
+homepage = "https://github.com/arferreira/loshell"
+keywords = ["tui", "lofi", "pomodoro", "focus", "terminal"]
+categories = ["command-line-utilities"]
+readme = "README.md"
+
+[[bin]]
+name = "loshell"
+path = "src/main.rs"
 
 [dependencies]
 ratatui = "0.30.0"
