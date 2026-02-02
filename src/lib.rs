@@ -14,6 +14,10 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 
+use crate::theme::Theme;
+
+mod theme;
+
 pub fn run() -> Result<()> {
     enable_raw_mode();
     let mut stdout = io::stdout();
@@ -38,6 +42,9 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             let size = f.area();
             let block = Block::default()
                 .title(" Loshell - A room for your mind ")
+                .style(Theme::base())
+                .border_style(Theme::frame())
+                .title_style(Theme::title())
                 .borders(Borders::ALL);
             f.render_widget(block, size);
         })?;
