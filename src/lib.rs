@@ -18,10 +18,12 @@ use ratatui::{
 };
 
 use crate::pomodoro::{Mode, Pomodoro};
+use crate::radio::Radio;
 use crate::theme::Theme;
 use crate::ui::logo::{self, LOGO_HEIGHT, LOGO_WIDTH};
 
 mod pomodoro;
+mod radio;
 mod theme;
 mod ui;
 
@@ -48,6 +50,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
     let mut last_tick = Instant::now();
     let mut frame: u64 = 0;
     let mut pomo = Pomodoro::new();
+    let mut radio = Radio::new();
     let mut last_second = Instant::now();
 
     loop {
@@ -70,40 +73,36 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 height: LOGO_HEIGHT,
             };
 
-            // HUD below logo
-            let hud_area = Rect {
-                x: area.x + 2,
-                y: area.y + 1 + LOGO_HEIGHT + 1,
-                width: area.width.saturating_sub(4),
-                height: area.height.saturating_sub(LOGO_HEIGHT + 3),
-            };
-
-            let live_on = frame.is_multiple_of(2);
-
-            let live = if live_on {
-                Span::styled("[LIVE]", Theme::accent())
+            // Radio station display (at bottom)
+            let (radio_icon, radio_style, status_text) = if radio.is_loading() {
+                let dots = match frame % 4 {
+                    0 => "   ",
+                    1 => ".  ",
+                    2 => ".. ",
+                    _ => "...",
+                };
+                ("◌", Theme::frame(), format!(" loading{}", dots))
+            } else if radio.is_playing() {
+                ("♫", Theme::accent(), String::new())
+            } else if radio.is_error() {
+                ("✗", Theme::hot(), " error".to_string())
             } else {
-                Span::styled("[LIVE]", Theme::frame())
+                ("♪", Theme::frame(), String::new())
             };
 
-            let pulse = match frame % 8 {
-                0 | 7 => "·",
-                1 | 6 => "··",
-                2 | 5 => "···",
-                _ => "····",
+            let station_area = Rect {
+                x: area.x + 2,
+                y: area.y + area.height - 3,
+                width: area.width.saturating_sub(4),
+                height: 1,
             };
 
-            let hud_lines = vec![
-                Line::from(vec![
-                    live,
-                    Span::raw("  "),
-                    Span::styled(format!("Drift {}", pulse), Theme::frame()),
-                ]),
-            ];
-
-            let hud = Paragraph::new(hud_lines)
-                .alignment(Alignment::Left)
-                .style(Theme::base());
+            let station_line = Paragraph::new(Line::from(vec![
+                Span::styled(format!("{} ", radio_icon), radio_style),
+                Span::styled(radio.station().name, Theme::hot()),
+                Span::styled(status_text, Theme::frame()),
+            ]))
+            .style(Theme::base());
 
             // Pomodoro display (top right)
             let pomo_width: u16 = 16;
@@ -145,23 +144,26 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             };
 
             let pomo_action = if pomo.running { "Pause" } else { "Continue" };
+            let radio_action = if radio.is_playing() || radio.is_loading() { "stop" } else { "play" };
 
             let help = Paragraph::new(Line::from(vec![
                 Span::styled("q ", Theme::accent()),
                 Span::styled("quit  ", Theme::frame()),
+                Span::styled("s ", Theme::accent()),
+                Span::styled(format!("{}  ", radio_action), Theme::frame()),
+                Span::styled("←/→ ", Theme::accent()),
+                Span::styled("station  ", Theme::frame()),
                 Span::styled("p ", Theme::accent()),
                 Span::styled("pomo  ", Theme::frame()),
                 Span::styled("space ", Theme::accent()),
                 Span::styled(format!("{}  ", pomo_action), Theme::frame()),
                 Span::styled("r ", Theme::accent()),
-                Span::styled("Stop  ", Theme::frame()),
-                Span::styled("+ ", Theme::accent()),
-                Span::styled("+5:00", Theme::frame()),
+                Span::styled("reset", Theme::frame()),
             ]))
             .style(Theme::base());
 
             f.render_widget(logo::logo(), logo_area);
-            f.render_widget(hud, hud_area);
+            f.render_widget(station_line, station_area);
             f.render_widget(help, help_area);
         })?;
 
@@ -174,8 +176,14 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
-                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('q') => {
+                        radio.stop();
+                        return Ok(());
+                    }
                     KeyCode::Char('p') => pomo.toggle_visible(),
+                    KeyCode::Char('s') => radio.toggle(),
+                    KeyCode::Left => radio.prev_station(),
+                    KeyCode::Right => radio.next_station(),
                     KeyCode::Char(' ') => pomo.start_pause(),
                     KeyCode::Char('r') => pomo.stop_reset(),
                     KeyCode::Char('+') => pomo.add_five_minutes(),

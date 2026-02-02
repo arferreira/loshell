@@ -1,0 +1,219 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicU8, Ordering},
+};
+use std::thread::{self, JoinHandle};
+
+use rodio::{Decoder, OutputStream, Sink};
+use stream_download::{Settings, StreamDownload, http::HttpStream, http::reqwest, storage::temp::TempStorageProvider};
+
+pub struct Station {
+    pub name: &'static str,
+    pub url: &'static str,
+}
+
+pub const STATIONS: &[Station] = &[
+    Station {
+        name: "Chillout",
+        url: "https://streams.ilovemusic.de/iloveradio17.mp3",
+    },
+    Station {
+        name: "Lounge",
+        url: "https://streams.ilovemusic.de/iloveradio2.mp3",
+    },
+    Station {
+        name: "Relax FM",
+        url: "https://stream.relaxfm.ru/relaxfm192.mp3",
+    },
+    Station {
+        name: "Smooth Jazz",
+        url: "https://streaming.radio.co/s774887f7b/listen",
+    },
+    Station {
+        name: "Ambient",
+        url: "https://streams.ilovemusic.de/iloveradio6.mp3",
+    },
+];
+
+// Radio states
+const STATE_STOPPED: u8 = 0;
+const STATE_LOADING: u8 = 1;
+const STATE_PLAYING: u8 = 2;
+const STATE_ERROR: u8 = 3;
+
+pub struct Radio {
+    pub current_station: usize,
+    state: Arc<AtomicU8>,
+    stop_flag: Arc<AtomicU8>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl Radio {
+    pub fn new() -> Self {
+        Self {
+            current_station: 0,
+            state: Arc::new(AtomicU8::new(STATE_STOPPED)),
+            stop_flag: Arc::new(AtomicU8::new(0)),
+            handle: None,
+        }
+    }
+
+    pub fn station(&self) -> &Station {
+        &STATIONS[self.current_station]
+    }
+
+    pub fn is_loading(&self) -> bool {
+        self.state.load(Ordering::SeqCst) == STATE_LOADING
+    }
+
+    pub fn is_playing(&self) -> bool {
+        self.state.load(Ordering::SeqCst) == STATE_PLAYING
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.state.load(Ordering::SeqCst) == STATE_ERROR
+    }
+
+    pub fn toggle(&mut self) {
+        let state = self.state.load(Ordering::SeqCst);
+        if state == STATE_STOPPED || state == STATE_ERROR {
+            self.play();
+        } else {
+            self.stop();
+        }
+    }
+
+    pub fn play(&mut self) {
+        let current_state = self.state.load(Ordering::SeqCst);
+        if current_state == STATE_LOADING || current_state == STATE_PLAYING {
+            return;
+        }
+
+        self.stop_flag.store(0, Ordering::SeqCst);
+        self.state.store(STATE_LOADING, Ordering::SeqCst);
+
+        let url = STATIONS[self.current_station].url.to_string();
+        let stop_flag = self.stop_flag.clone();
+        let state = self.state.clone();
+
+        let handle = thread::spawn(move || {
+            // Create audio output
+            let (_stream, stream_handle) = match OutputStream::try_default() {
+                Ok(s) => s,
+                Err(_) => {
+                    state.store(STATE_ERROR, Ordering::SeqCst);
+                    return;
+                }
+            };
+
+            let sink = match Sink::try_new(&stream_handle) {
+                Ok(s) => s,
+                Err(_) => {
+                    state.store(STATE_ERROR, Ordering::SeqCst);
+                    return;
+                }
+            };
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                // Check if stopped while setting up
+                if stop_flag.load(Ordering::SeqCst) == 1 {
+                    return;
+                }
+
+                let client = reqwest::Client::builder()
+                    .redirect(reqwest::redirect::Policy::limited(10))
+                    .build()
+                    .unwrap();
+
+                let stream = match HttpStream::new(client, url.parse().unwrap()).await {
+                    Ok(s) => s,
+                    Err(_) => {
+                        state.store(STATE_ERROR, Ordering::SeqCst);
+                        return;
+                    }
+                };
+
+                if stop_flag.load(Ordering::SeqCst) == 1 {
+                    return;
+                }
+
+                let reader = match StreamDownload::from_stream(
+                    stream,
+                    TempStorageProvider::new(),
+                    Settings::default(),
+                ).await {
+                    Ok(r) => r,
+                    Err(_) => {
+                        state.store(STATE_ERROR, Ordering::SeqCst);
+                        return;
+                    }
+                };
+
+                if stop_flag.load(Ordering::SeqCst) == 1 {
+                    return;
+                }
+
+                let source = match Decoder::new(reader) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        state.store(STATE_ERROR, Ordering::SeqCst);
+                        return;
+                    }
+                };
+
+                sink.append(source);
+                sink.set_volume(1.0);
+                sink.play();
+
+                // Now playing!
+                state.store(STATE_PLAYING, Ordering::SeqCst);
+
+                // Keep thread alive
+                while stop_flag.load(Ordering::SeqCst) == 0 {
+                    thread::sleep(std::time::Duration::from_millis(100));
+                }
+
+                sink.stop();
+            });
+        });
+
+        self.handle = Some(handle);
+    }
+
+    pub fn stop(&mut self) {
+        self.stop_flag.store(1, Ordering::SeqCst);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+        self.state.store(STATE_STOPPED, Ordering::SeqCst);
+    }
+
+    pub fn next_station(&mut self) {
+        let was_active = self.is_playing() || self.is_loading();
+        self.stop();
+        self.current_station = (self.current_station + 1) % STATIONS.len();
+        if was_active {
+            self.play();
+        }
+    }
+
+    pub fn prev_station(&mut self) {
+        let was_active = self.is_playing() || self.is_loading();
+        self.stop();
+        self.current_station = if self.current_station == 0 {
+            STATIONS.len() - 1
+        } else {
+            self.current_station - 1
+        };
+        if was_active {
+            self.play();
+        }
+    }
+}
+
+impl Drop for Radio {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}

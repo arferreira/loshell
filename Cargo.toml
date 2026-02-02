@@ -7,3 +7,6 @@ edition = "2024"
 ratatui = "0.30.0"
 crossterm = "0.29.0"
 anyhow = "1"
+rodio = { version = "0.19", features = ["symphonia-mp3", "symphonia-aac"] }
+stream-download = { version = "0.9", features = ["reqwest-native-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
