@@ -6,6 +6,8 @@ Loshell is a terminal-native ambient environment for deep focus. It blends lofi 
 
 Enter the room. Set the cycle. Drift into focus.
 
+![demo](demo.gif)
+
 ## Install
 
 ```bash
@@ -36,6 +38,12 @@ loshell
 | `space` | Start/pause timer |
 | `r` | Reset timer |
 | `+` | Add 5 minutes |
+| `t` | Toggle todo list |
+| `n` | New task |
+| `j/k` | Navigate tasks |
+| `x` | Mark task done |
+| `d` | Delete task |
+| `Enter` | Track task with pomodoro |
 
 ### Stations
 
