@@ -26,7 +26,7 @@ impl Pomodoro {
         let break_len = Duration::from_secs(5 * 60);
 
         Self {
-            visible: false,
+            visible: true,
             running: false,
             mode: Mode::Focus,
             remaining: focus_len,
@@ -88,7 +88,7 @@ impl Pomodoro {
             let Ok(stream) = OutputStreamBuilder::open_default_stream() else {
                 return;
             };
-            let sink = Sink::connect_new(&stream.mixer());
+            let sink = Sink::connect_new(stream.mixer());
 
             // Different tones for focus vs break
             // Focus starting: lower, calming tone
@@ -106,8 +106,8 @@ impl Pomodoro {
                     .amplify(0.9);
                 sink.append(beep);
 
-                let silence = rodio::source::Zero::new(1, 44100)
-                    .take_duration(Duration::from_millis(150));
+                let silence =
+                    rodio::source::Zero::new(1, 44100).take_duration(Duration::from_millis(150));
                 sink.append(silence);
             }
 

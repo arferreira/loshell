@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::os::fd::AsRawFd;
 use std::sync::{
     Arc,
     atomic::{AtomicU8, Ordering},
@@ -5,7 +7,9 @@ use std::sync::{
 use std::thread::{self, JoinHandle};
 
 use rodio::{Decoder, OutputStreamBuilder, Sink};
-use stream_download::{Settings, StreamDownload, http::HttpStream, http::reqwest, storage::temp::TempStorageProvider};
+use stream_download::{
+    Settings, StreamDownload, http::HttpStream, http::reqwest, storage::temp::TempStorageProvider,
+};
 
 pub struct Station {
     pub name: &'static str,
@@ -109,7 +113,7 @@ impl Radio {
 
         let handle = thread::spawn(move || {
             // Create audio output
-            let stream = match OutputStreamBuilder::open_default_stream() {
+            let audio_stream = match OutputStreamBuilder::open_default_stream() {
                 Ok(s) => s,
                 Err(_) => {
                     state.store(STATE_ERROR, Ordering::SeqCst);
@@ -117,7 +121,7 @@ impl Radio {
                 }
             };
 
-            let sink = Sink::connect_new(&stream.mixer());
+            let sink = Sink::connect_new(audio_stream.mixer());
 
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
@@ -131,7 +135,7 @@ impl Radio {
                     .build()
                     .unwrap();
 
-                let stream = match HttpStream::new(client, url.parse().unwrap()).await {
+                let http_stream = match HttpStream::new(client, url.parse().unwrap()).await {
                     Ok(s) => s,
                     Err(_) => {
                         state.store(STATE_ERROR, Ordering::SeqCst);
@@ -144,10 +148,12 @@ impl Radio {
                 }
 
                 let reader = match StreamDownload::from_stream(
-                    stream,
+                    http_stream,
                     TempStorageProvider::new(),
                     Settings::default(),
-                ).await {
+                )
+                .await
+                {
                     Ok(r) => r,
                     Err(_) => {
                         state.store(STATE_ERROR, Ordering::SeqCst);
@@ -183,6 +189,22 @@ impl Radio {
 
                 sink.stop();
             });
+
+            drop(sink);
+
+            // Suppress rodio's "Dropping OutputStream" message
+            unsafe {
+                let null = File::open("/dev/null").ok();
+                let old_stderr = libc::dup(2);
+                if let Some(ref f) = null {
+                    libc::dup2(f.as_raw_fd(), 2);
+                }
+                drop(audio_stream);
+                if old_stderr >= 0 {
+                    libc::dup2(old_stderr, 2);
+                    libc::close(old_stderr);
+                }
+            }
         });
 
         self.handle = Some(handle);

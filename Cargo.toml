@@ -22,3 +22,6 @@ rodio = { version = "0.21.1", features = ["symphonia-mp3", "symphonia-aac"] }
 stream-download = { version = "0.23.0", features = ["reqwest-native-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6.0"
