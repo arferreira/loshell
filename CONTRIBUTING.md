@@ -1,53 +1,47 @@
 # Contributing to loshell
 
-Thanks for wanting to help improve loshell.
+Thanks for your interest in contributing.
 
 ## Getting Started
 
-```bash
-git clone https://github.com/arferreira/loshell.git
-cd loshell
-cargo run
-```
-
-## What We're Looking For
-
-- New radio stations (must be direct HTTP streams, no YouTube)
-- UI improvements (keeping it minimal)
-- Bug fixes
-- Performance improvements
-- Platform support (Windows, etc.)
-
-## Pull Requests
-
 1. Fork the repo
-2. Create a branch (`git checkout -b feature/your-thing`)
-3. Make your changes
-4. Run `cargo fmt` and `cargo clippy`
-5. Commit with a clear message
-6. Push and open a PR
-
-Keep PRs focused. One feature or fix per PR.
+2. Clone your fork
+3. Create a branch: `git checkout -b feat/your-feature`
+4. Make your changes
+5. Run `cargo fmt && cargo clippy`
+6. Commit with a clear message
+7. Push and open a PR
 
 ## Code Style
 
 - Run `cargo fmt` before committing
-- No warnings from `cargo clippy`
-- Keep it simple - this is a small focused tool
+- No clippy warnings
+- Keep it simple, avoid over-engineering
+- Follow existing patterns in the codebase
 
-## Adding Stations
+## Commit Messages
 
-Stations live in `src/radio.rs`. To add one:
+Single line, short, direct. Use verbs like Add, Fix, Update, Remove.
 
-```rust
-Station {
-    name: "Station Name",
-    url: "https://direct-stream-url.mp3",
-},
+```
+Add station volume control
+Fix pomodoro timer reset bug
+Update README with new keybindings
+Remove unused imports
 ```
 
-Make sure the stream is reliable and publicly accessible.
+## Pull Requests
+
+- Keep PRs focused on a single change
+- Include a clear description of what and why
+- Link related issues if any
+
+## Issues
+
+- Check existing issues before opening a new one
+- Use the issue templates
+- Be specific about the problem or feature
 
 ## Questions?
 
-Open an issue.
+Open an issue or start a discussion.
