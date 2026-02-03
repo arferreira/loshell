@@ -20,11 +20,14 @@ use ratatui::{
 use crate::pomodoro::{Mode, Pomodoro};
 use crate::radio::Radio;
 use crate::theme::Theme;
+use crate::todo::TodoList;
 use crate::ui::logo::{self, LOGO_HEIGHT, LOGO_WIDTH};
 
 mod pomodoro;
 mod radio;
+mod storage;
 mod theme;
+mod todo;
 mod ui;
 
 pub fn run() -> Result<()> {
@@ -51,6 +54,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
     let mut frame: u64 = 0;
     let mut pomo = Pomodoro::new();
     let mut radio = Radio::new();
+    let mut todos = TodoList::load();
     let mut last_second = Instant::now();
 
     loop {
@@ -122,7 +126,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             };
 
             let pomo_action = if pomo.running { "Pause" } else { "Continue" };
-            let radio_action = if radio.is_playing() || radio.is_loading() { "stop" } else { "play" };
+            let radio_action = if radio.is_playing() || radio.is_loading() {
+                "stop"
+            } else {
+                "play"
+            };
 
             let help = Paragraph::new(Line::from(vec![
                 Span::styled("q ", Theme::accent()),
@@ -131,18 +139,27 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 Span::styled(format!("{}  ", radio_action), Theme::frame()),
                 Span::styled("←/→ ", Theme::accent()),
                 Span::styled("station  ", Theme::frame()),
+                Span::styled("t ", Theme::accent()),
+                Span::styled("todos  ", Theme::frame()),
                 Span::styled("p ", Theme::accent()),
                 Span::styled("pomo  ", Theme::frame()),
                 Span::styled("space ", Theme::accent()),
-                Span::styled(format!("{}  ", pomo_action), Theme::frame()),
-                Span::styled("r ", Theme::accent()),
-                Span::styled("reset", Theme::frame()),
+                Span::styled(pomo_action, Theme::frame()),
             ]))
             .style(Theme::base());
+
+            // Todo list in center area
+            let todo_area = Rect {
+                x: area.x + 4,
+                y: area.y + 3,
+                width: area.width.saturating_sub(8),
+                height: area.height.saturating_sub(8),
+            };
 
             f.render_widget(logo::logo(), logo_area);
             f.render_widget(station_line, station_area);
             f.render_widget(help, help_area);
+            todos.draw(f, todo_area);
 
             // Pomodoro on top
             if pomo.visible {
@@ -152,7 +169,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                     Mode::Break => "BREAK",
                 };
                 let status = if pomo.running { "▶" } else { "⏸" };
-                let timer_style = if pomo.running { Theme::accent() } else { Theme::frame() };
+                let timer_style = if pomo.running {
+                    Theme::accent()
+                } else {
+                    Theme::frame()
+                };
 
                 let pomo_widget = Paragraph::new(vec![
                     Line::from(Span::styled(format!("{:02}:{:02}", mm, ss), Theme::hot())),
@@ -176,19 +197,63 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
         // input
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => {
-                        radio.stop();
-                        return Ok(());
+                // Todo input mode captures all keys
+                if todos.input_mode {
+                    match key.code {
+                        KeyCode::Enter => todos.confirm_input(),
+                        KeyCode::Esc => todos.cancel_input(),
+                        KeyCode::Backspace => todos.backspace(),
+                        KeyCode::Char(c) => todos.type_char(c),
+                        _ => {}
                     }
-                    KeyCode::Char('p') => pomo.toggle_visible(),
-                    KeyCode::Char('s') => radio.toggle(),
-                    KeyCode::Left => radio.prev_station(),
-                    KeyCode::Right => radio.next_station(),
-                    KeyCode::Char(' ') => pomo.start_pause(),
-                    KeyCode::Char('r') => pomo.stop_reset(),
-                    KeyCode::Char('+') => pomo.add_five_minutes(),
-                    _ => {}
+                } else if todos.visible {
+                    // Todo visible - handle todo keys first
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            todos.save();
+                            radio.stop();
+                            return Ok(());
+                        }
+                        KeyCode::Char('t') => todos.toggle_visible(),
+                        KeyCode::Char('n') => todos.enter_input_mode(),
+                        KeyCode::Char('j') => todos.move_down(),
+                        KeyCode::Char('k') => todos.move_up(),
+                        KeyCode::Char('x') => todos.toggle_completed(),
+                        KeyCode::Char('d') => todos.delete_selected(),
+                        KeyCode::Enter => todos.select_for_pomodoro(),
+                        KeyCode::Char('s') => radio.toggle(),
+                        KeyCode::Left => radio.prev_station(),
+                        KeyCode::Right => radio.next_station(),
+                        KeyCode::Char(' ') => {
+                            // Auto-track selected task if none tracked
+                            if todos.active_task.is_none() && !todos.tasks.is_empty() {
+                                todos.select_for_pomodoro();
+                            }
+                            pomo.start_pause();
+                        }
+                        KeyCode::Char('r') => pomo.stop_reset(),
+                        KeyCode::Char('+') => pomo.add_five_minutes(),
+                        KeyCode::Esc => todos.toggle_visible(),
+                        _ => {}
+                    }
+                } else {
+                    // Normal mode
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            todos.save();
+                            radio.stop();
+                            return Ok(());
+                        }
+                        KeyCode::Char('t') => todos.toggle_visible(),
+                        KeyCode::Char('p') => pomo.toggle_visible(),
+                        KeyCode::Char('s') => radio.toggle(),
+                        KeyCode::Left => radio.prev_station(),
+                        KeyCode::Right => radio.next_station(),
+                        KeyCode::Char(' ') => pomo.start_pause(),
+                        KeyCode::Char('r') => pomo.stop_reset(),
+                        KeyCode::Char('+') => pomo.add_five_minutes(),
+                        _ => {}
+                    }
                 }
             }
         }
@@ -206,6 +271,14 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                     _ => 10,
                 };
                 radio.set_volume(vol);
+            }
+
+            // Track time on active task
+            if pomo.running {
+                if let Some(task_id) = todos.active_task {
+                    todos.add_time(task_id, Duration::from_secs(1));
+                    todos.save_throttled();
+                }
             }
 
             if pomo.tick_1s() {
