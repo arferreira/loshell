@@ -47,11 +47,13 @@ loshell
 
 ### Stations
 
-- Chillout
-- Lounge
-- Relax FM
-- Smooth Jazz
-- Ambient
+All stations powered by [SomaFM](https://somafm.com) - listener-supported, commercial-free radio.
+
+- Groove Salad - ambient/chill
+- Drone Zone - atmospheric space music
+- Lush - sensual vocals with chillout
+- Deep Space One - deep ambient/space
+- Vaporwaves - vaporwave aesthetic
 
 ## The Story
 
