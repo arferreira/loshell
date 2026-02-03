@@ -18,24 +18,24 @@ pub struct Station {
 
 pub const STATIONS: &[Station] = &[
     Station {
-        name: "Chillout",
-        url: "https://streams.ilovemusic.de/iloveradio17.mp3",
+        name: "Groove Salad",
+        url: "https://ice4.somafm.com/groovesalad-128-mp3",
     },
     Station {
-        name: "Lounge",
-        url: "https://streams.ilovemusic.de/iloveradio2.mp3",
+        name: "Drone Zone",
+        url: "https://ice4.somafm.com/dronezone-128-mp3",
     },
     Station {
-        name: "Relax FM",
-        url: "https://stream.relaxfm.ru/relaxfm192.mp3",
+        name: "Lush",
+        url: "https://ice4.somafm.com/lush-128-mp3",
     },
     Station {
-        name: "Smooth Jazz",
-        url: "https://streaming.radio.co/s774887f7b/listen",
+        name: "Deep Space One",
+        url: "https://ice4.somafm.com/deepspaceone-128-mp3",
     },
     Station {
-        name: "Ambient",
-        url: "https://streams.ilovemusic.de/iloveradio6.mp3",
+        name: "Vaporwaves",
+        url: "https://ice4.somafm.com/vaporwaves-128-mp3",
     },
 ];
 
