@@ -186,7 +186,7 @@ impl TodoList {
         }
     }
 
-    pub fn draw(&self, f: &mut Frame, area: Rect) {
+    pub fn draw(&self, f: &mut Frame, area: Rect, theme: &Theme) {
         if !self.visible {
             return;
         }
@@ -196,14 +196,14 @@ impl TodoList {
         // Header
         lines.push(Line::from(Span::styled(
             "what stuff you have to ship today",
-            Theme::title(),
+            theme.title(),
         )));
         lines.push(Line::from(""));
 
         if self.tasks.is_empty() && !self.input_mode {
             lines.push(Line::from(Span::styled(
                 "  nothing here. press n to add something.",
-                Theme::frame(),
+                theme.frame(),
             )));
         }
 
@@ -228,26 +228,26 @@ impl TodoList {
             let padding = available.saturating_sub(text_display.chars().count());
 
             let text_style = if is_active {
-                Theme::accent()
+                theme.accent()
             } else if task.completed {
-                Theme::frame()
+                theme.frame()
             } else {
-                Theme::base()
+                theme.base()
             };
 
             let cursor_style = if is_selected {
-                Theme::accent()
+                theme.accent()
             } else {
-                Theme::base()
+                theme.base()
             };
 
             lines.push(Line::from(vec![
                 Span::styled(cursor, cursor_style),
-                Span::styled(format!("{} ", checkbox), Theme::frame()),
+                Span::styled(format!("{} ", checkbox), theme.frame()),
                 Span::styled(text_display, text_style),
-                Span::styled(tracking, Theme::accent()),
+                Span::styled(tracking, theme.accent()),
                 Span::raw(" ".repeat(padding.saturating_sub(tracking.len()))),
-                Span::styled(format!("{:>8}", time_str), Theme::frame()),
+                Span::styled(format!("{:>8}", time_str), theme.frame()),
             ]));
         }
 
@@ -255,9 +255,9 @@ impl TodoList {
         if self.input_mode {
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
-                Span::styled("> ", Theme::accent()),
-                Span::styled(&self.input_buffer, Theme::base()),
-                Span::styled("_", Theme::accent()),
+                Span::styled("> ", theme.accent()),
+                Span::styled(&self.input_buffer, theme.base()),
+                Span::styled("_", theme.accent()),
             ]));
         }
 
@@ -265,27 +265,27 @@ impl TodoList {
         lines.push(Line::from(""));
         if self.input_mode {
             lines.push(Line::from(vec![
-                Span::styled("Enter ", Theme::accent()),
-                Span::styled("confirm  ", Theme::frame()),
-                Span::styled("Esc ", Theme::accent()),
-                Span::styled("cancel", Theme::frame()),
+                Span::styled("Enter ", theme.accent()),
+                Span::styled("confirm  ", theme.frame()),
+                Span::styled("Esc ", theme.accent()),
+                Span::styled("cancel", theme.frame()),
             ]));
         } else {
             lines.push(Line::from(vec![
-                Span::styled("j/k ", Theme::accent()),
-                Span::styled("move  ", Theme::frame()),
-                Span::styled("n ", Theme::accent()),
-                Span::styled("new  ", Theme::frame()),
-                Span::styled("x ", Theme::accent()),
-                Span::styled("done  ", Theme::frame()),
-                Span::styled("d ", Theme::accent()),
-                Span::styled("del  ", Theme::frame()),
-                Span::styled("Enter ", Theme::accent()),
-                Span::styled("track", Theme::frame()),
+                Span::styled("j/k ", theme.accent()),
+                Span::styled("move  ", theme.frame()),
+                Span::styled("n ", theme.accent()),
+                Span::styled("new  ", theme.frame()),
+                Span::styled("x ", theme.accent()),
+                Span::styled("done  ", theme.frame()),
+                Span::styled("d ", theme.accent()),
+                Span::styled("del  ", theme.frame()),
+                Span::styled("Enter ", theme.accent()),
+                Span::styled("track", theme.frame()),
             ]));
         }
 
-        let widget = Paragraph::new(lines).style(Theme::base());
+        let widget = Paragraph::new(lines).style(theme.base());
         f.render_widget(widget, area);
     }
 }
