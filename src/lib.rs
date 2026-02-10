@@ -19,6 +19,7 @@ use ratatui::{
 
 use crate::pomodoro::{Mode, Pomodoro};
 use crate::radio::Radio;
+use crate::storage::Config;
 use crate::theme::Theme;
 use crate::todo::TodoList;
 use crate::ui::logo::{self, LOGO_HEIGHT, LOGO_WIDTH};
@@ -57,14 +58,18 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
     let mut todos = TodoList::load();
     let mut last_second = Instant::now();
 
+    let config = storage::load_config();
+    let mut theme_name = config.theme;
+    let mut theme = Theme::from_name(theme_name);
+
     loop {
         terminal.draw(|f| {
             let area = f.area();
             f.render_widget(ratatui::widgets::Clear, area);
 
             let block = Block::default()
-                .style(Theme::base())
-                .border_style(Theme::frame())
+                .style(theme.base())
+                .border_style(theme.frame())
                 .borders(Borders::ALL);
 
             f.render_widget(block, area);
@@ -85,13 +90,13 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                     2 => ".. ",
                     _ => "...",
                 };
-                ("◌", Theme::frame(), format!(" loading{}", dots))
+                ("◌", theme.frame(), format!(" loading{}", dots))
             } else if radio.is_playing() {
-                ("♫", Theme::accent(), String::new())
+                ("♫", theme.accent(), String::new())
             } else if radio.is_error() {
-                ("✗", Theme::hot(), " error".to_string())
+                ("✗", theme.hot(), " error".to_string())
             } else {
-                ("♪", Theme::frame(), String::new())
+                ("♪", theme.frame(), String::new())
             };
 
             let station_area = Rect {
@@ -103,10 +108,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
 
             let station_line = Paragraph::new(Line::from(vec![
                 Span::styled(format!("{} ", radio_icon), radio_style),
-                Span::styled(radio.station().name, Theme::hot()),
-                Span::styled(status_text, Theme::frame()),
+                Span::styled(radio.station().name, theme.hot()),
+                Span::styled(status_text, theme.frame()),
             ]))
-            .style(Theme::base());
+            .style(theme.base());
 
             // Pomodoro display (top right)
             let pomo_width: u16 = 16;
@@ -133,20 +138,22 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             };
 
             let help = Paragraph::new(Line::from(vec![
-                Span::styled("q ", Theme::accent()),
-                Span::styled("quit  ", Theme::frame()),
-                Span::styled("s ", Theme::accent()),
-                Span::styled(format!("{}  ", radio_action), Theme::frame()),
-                Span::styled("←/→ ", Theme::accent()),
-                Span::styled("station  ", Theme::frame()),
-                Span::styled("t ", Theme::accent()),
-                Span::styled("todos  ", Theme::frame()),
-                Span::styled("p ", Theme::accent()),
-                Span::styled("pomo  ", Theme::frame()),
-                Span::styled("space ", Theme::accent()),
-                Span::styled(pomo_action, Theme::frame()),
+                Span::styled("q ", theme.accent()),
+                Span::styled("quit  ", theme.frame()),
+                Span::styled("s ", theme.accent()),
+                Span::styled(format!("{}  ", radio_action), theme.frame()),
+                Span::styled("←/→ ", theme.accent()),
+                Span::styled("station  ", theme.frame()),
+                Span::styled("t ", theme.accent()),
+                Span::styled("todos  ", theme.frame()),
+                Span::styled("T ", theme.accent()),
+                Span::styled("theme  ", theme.frame()),
+                Span::styled("p ", theme.accent()),
+                Span::styled("pomo  ", theme.frame()),
+                Span::styled("space ", theme.accent()),
+                Span::styled(pomo_action, theme.frame()),
             ]))
-            .style(Theme::base());
+            .style(theme.base());
 
             // Todo list in center area
             let todo_area = Rect {
@@ -156,10 +163,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 height: area.height.saturating_sub(8),
             };
 
-            f.render_widget(logo::logo(), logo_area);
+            f.render_widget(logo::logo(&theme, theme_name), logo_area);
             f.render_widget(station_line, station_area);
             f.render_widget(help, help_area);
-            todos.draw(f, todo_area);
+            todos.draw(f, todo_area, &theme);
 
             // Pomodoro on top
             if pomo.visible {
@@ -170,20 +177,20 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 };
                 let status = if pomo.running { "▶" } else { "⏸" };
                 let timer_style = if pomo.running {
-                    Theme::accent()
+                    theme.accent()
                 } else {
-                    Theme::frame()
+                    theme.frame()
                 };
 
                 let pomo_widget = Paragraph::new(vec![
-                    Line::from(Span::styled(format!("{:02}:{:02}", mm, ss), Theme::hot())),
+                    Line::from(Span::styled(format!("{:02}:{:02}", mm, ss), theme.hot())),
                     Line::from(vec![
                         Span::styled(format!("{} ", status), timer_style),
-                        Span::styled(mode_label, Theme::title()),
+                        Span::styled(mode_label, theme.title()),
                     ]),
                 ])
                 .alignment(Alignment::Right)
-                .style(Theme::base());
+                .style(theme.base());
 
                 f.render_widget(pomo_widget, pomo_area);
             }
@@ -215,6 +222,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                             return Ok(());
                         }
                         KeyCode::Char('t') => todos.toggle_visible(),
+                        KeyCode::Char('T') => {
+                            theme_name = theme_name.next();
+                            theme = Theme::from_name(theme_name);
+                            storage::save_config(&Config { theme: theme_name });
+                        }
                         KeyCode::Char('n') => todos.enter_input_mode(),
                         KeyCode::Char('j') => todos.move_down(),
                         KeyCode::Char('k') => todos.move_up(),
@@ -245,6 +257,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                             return Ok(());
                         }
                         KeyCode::Char('t') => todos.toggle_visible(),
+                        KeyCode::Char('T') => {
+                            theme_name = theme_name.next();
+                            theme = Theme::from_name(theme_name);
+                            storage::save_config(&Config { theme: theme_name });
+                        }
                         KeyCode::Char('p') => pomo.toggle_visible(),
                         KeyCode::Char('s') => radio.toggle(),
                         KeyCode::Left => radio.prev_station(),
