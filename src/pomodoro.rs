@@ -82,6 +82,31 @@ impl Pomodoro {
         (secs / 60, secs % 60)
     }
 
+    pub fn notify(&self) {
+        let (title, body) = match self.mode {
+            Mode::Focus => ("Time to focus", "Focus session started. Let's go."),
+            Mode::Break => ("Take a break", "Break time. Step away for a bit."),
+        };
+        thread::spawn(move || {
+            #[cfg(target_os = "macos")]
+            {
+                let script = format!(
+                    "display notification \"{}\" with title \"{}\"",
+                    body, title
+                );
+                let _ = std::process::Command::new("osascript")
+                    .args(["-e", &script])
+                    .output();
+            }
+            #[cfg(target_os = "linux")]
+            {
+                let _ = std::process::Command::new("notify-send")
+                    .args([title, body])
+                    .output();
+            }
+        });
+    }
+
     pub fn play_notification(&self) {
         let is_focus = matches!(self.mode, Mode::Focus);
         thread::spawn(move || {

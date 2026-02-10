@@ -299,6 +299,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
             }
 
             if pomo.tick_1s() {
+                pomo.notify();
                 pomo.play_notification();
                 // Restore volume after a delay (notification lasts ~1.5s)
                 let vol_handle = radio.volume_handle();
