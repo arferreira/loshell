@@ -90,6 +90,7 @@ impl Pomodoro {
         thread::spawn(move || {
             #[cfg(target_os = "macos")]
             {
+                let script = format!("display notification \"{}\" with title \"{}\"", body, title);
                 let _ = std::process::Command::new("osascript")
                     .args(["-e", &script])
                     .output();
