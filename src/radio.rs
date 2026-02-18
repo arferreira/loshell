@@ -72,6 +72,10 @@ impl Radio {
         self.volume.clone()
     }
 
+    pub fn volume(&self) -> u8 {
+        self.volume.load(Ordering::SeqCst)
+    }
+
     pub fn station(&self) -> &Station {
         &STATIONS[self.current_station]
     }
