@@ -34,7 +34,7 @@ loshell
 | `q` | Quit |
 | `s` | Play/stop radio |
 | `←/→` | Switch station |
-| `[ / ]` | Switch station |
+| `[ / ]` | Volume control |
 | `p` | Toggle pomodoro |
 | `space` | Start/pause timer |
 | `r` | Reset timer |
