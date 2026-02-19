@@ -106,10 +106,22 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 height: 1,
             };
 
+            let vol = radio.volume();
+            let bar_width = 12usize;
+            let filled = (vol as usize * bar_width) / 100;
+            let empty = bar_width - filled;
+            let vol_bar = format!(
+                "  Volume: [{}{}] {}%",
+                "█".repeat(filled),
+                "-".repeat(empty),
+                vol
+            );
+
             let station_line = Paragraph::new(Line::from(vec![
                 Span::styled(format!("{} ", radio_icon), radio_style),
                 Span::styled(radio.station().name, theme.hot()),
                 Span::styled(status_text, theme.frame()),
+                Span::styled(vol_bar, theme.frame()),
             ]))
             .style(theme.base());
 
@@ -144,6 +156,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                 Span::styled(format!("{}  ", radio_action), theme.frame()),
                 Span::styled("←/→ ", theme.accent()),
                 Span::styled("station  ", theme.frame()),
+                Span::styled("[/] ", theme.accent()),
+                Span::styled("volume  ", theme.frame()),
                 Span::styled("t ", theme.accent()),
                 Span::styled("todos  ", theme.frame()),
                 Span::styled("T ", theme.accent()),
@@ -245,6 +259,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                         }
                         KeyCode::Char('r') => pomo.stop_reset(),
                         KeyCode::Char('+') => pomo.add_five_minutes(),
+                        KeyCode::Char('[') => radio.set_volume(radio.volume().saturating_sub(10)),
+                        KeyCode::Char(']') => radio.set_volume((radio.volume() + 10).min(100)),
                         KeyCode::Esc => todos.toggle_visible(),
                         _ => {}
                     }
@@ -269,6 +285,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
                         KeyCode::Char(' ') => pomo.start_pause(),
                         KeyCode::Char('r') => pomo.stop_reset(),
                         KeyCode::Char('+') => pomo.add_five_minutes(),
+                        KeyCode::Char('[') => radio.set_volume(radio.volume().saturating_sub(10)),
+                        KeyCode::Char(']') => radio.set_volume((radio.volume() + 10).min(100)),
                         _ => {}
                     }
                 }
