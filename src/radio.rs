@@ -37,6 +37,18 @@ pub const STATIONS: &[Station] = &[
         name: "Vaporwaves",
         url: "https://ice4.somafm.com/vaporwaves-128-mp3",
     },
+    Station {
+        name: "Chillits",
+        url: "https://ice4.somafm.com/chillits-128-mp3",
+    },
+    Station {
+        name: "Sonic Universe",
+        url: "https://ice4.somafm.com/sonicuniverse-128-mp3",
+    },
+    Station {
+        name: "Digitalis",
+        url: "https://ice4.somafm.com/digitalis-128-mp3",
+    },
 ];
 
 // Radio states
